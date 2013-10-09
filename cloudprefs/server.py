@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import motor
 
 import tornado.ioloop
@@ -30,51 +31,44 @@ class PrefsHandler(tornado.web.RequestHandler):
     @gen.coroutine
     def get(self, category=None, identifier=None, keyword=None):
         """Return a document or part of a document for specified entity"""
-        results = None
         response = None
 
         if not category:
             # List all collections
-            collections = yield motor.Op(self.db.collection_names)
+            response = yield motor.Op(self.db.collection_names)
             try:
-                collections.remove('system.indexes')
+                response.remove('system.indexes')
             except:
                 pass
-            response = dict(categories=collections)
 
         elif not identifier:
             # List all documents
             collection = self.db[category]
             cursor = collection.find({}, {'_id': 0, 'id': 1})
-            ids = []
+            response = []
             results = yield motor.Op(cursor.to_list, length=10)
             for result in results:
-                ids.append(result['id'])
+                response.append(result['id'])
             while results:
                 results = yield motor.Op(cursor.to_list, length=10)
                 for result in results:
-                    ids.append(result['id'])
-
-            response = {category: ids}
+                    response.append(result['id'])
 
         else:
             collection = self.db[category]
-            result = yield motor.Op(collection.find_one, {'id': identifier}, {'_id': 0})
+            response = yield motor.Op(collection.find_one, {'id': identifier}, {'_id': 0})
 
             if keyword:
                 # Return the whole document
                 keys = keyword.split('/')
                 while keys:
                     key = keys.pop(0)
-                    result = result.get(key, {})
-
-                response = {keyword: result}
-            else:
-                # Print just what was asked for
-                response = result
+                    if type(response) is dict:
+                        response = response.get(key, {})
 
         if response:
-            self.write(response)
+            self.set_header('Content-Type', 'application/json')
+            self.write(json.dumps(response))
         else:
             self.set_status(404)
 
@@ -86,6 +80,7 @@ def main():
         (r"/(.*?)/(.*?)", PrefsHandler, dict(client=client)),
         (r"/(.*?)", PrefsHandler, dict(client=client)),
     ])
+
     print 'Listening on http://localhost:8888'
     application.listen(8888)
     tornado.ioloop.IOLoop.instance().start()
