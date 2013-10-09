@@ -17,6 +17,7 @@ setup(
     install_requires=[
         'tornado',
         'motor',
+        'pylibmc',
     ],
     classifiers=[
         'Development Status :: 3 - Alpha',
