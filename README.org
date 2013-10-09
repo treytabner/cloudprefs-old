@@ -1,0 +1,19 @@
+* Cloud Preferences API
+
+Cloud Preferences is a RESTful API designed to be work with OpenStack and Rackspace Cloud.  It let's you store and manage data associated with tenants, users, devices and more.
+
+** Overview
+
+Cloud Preferences is built with Python and uses Tornado for the web framework providing asynchronous networking and Motor for non-blocking MongoDB support.
+
+** Installation
+
+#+BEGIN_SRC sh
+pip install https://github.com/treytabner/python-cloudprefs.git
+#+END_SRC
+
+** Configuration
+
+** Starting services
+
+** Testing & examples
