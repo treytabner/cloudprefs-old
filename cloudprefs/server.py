@@ -40,6 +40,13 @@ class PrefsHandler(tornado.web.RequestHandler):
         # http://motor.readthedocs.org/en/stable/api/motor_collection.html#motor.MotorCollection.ensure_index
 
     @gen.coroutine
+    def prepare(self):
+        """Make sure we have a valid database"""
+        if not self.tenant_id or not self.database:
+            self.set_status(401)
+            self.finish()
+
+    @gen.coroutine
     def get(self, category=None, identifier=None, keyword=None):
         """Return a document or part of a document for specified entity"""
         response = None
@@ -53,23 +60,23 @@ class PrefsHandler(tornado.web.RequestHandler):
         elif not identifier:
             # List all documents
             collection = self.database[category]
-            cursor = collection.find({}, {'_id': 0, 'id': 1})
+            cursor = collection.find({}, {'_id': 0, '__id': 1})
             response = []
             results = yield motor.Op(cursor.to_list, length=10)
             for result in results:
-                if 'id' in result:
-                    response.append(result['id'])
+                if '__id' in result:
+                    response.append(result['__id'])
             while results:
                 results = yield motor.Op(cursor.to_list, length=10)
                 for result in results:
-                    if 'id' in result:
-                        response.append(result['id'])
+                    if '__id' in result:
+                        response.append(result['__id'])
 
         else:
             collection = self.database[category]
             response = yield motor.Op(collection.find_one,
-                                      {'id': identifier},
-                                      {'_id': 0, 'id': 0})
+                                      {'__id': identifier},
+                                      {'_id': 0, '__id': 0})
 
             if keyword:
                 # Return the whole document
@@ -94,14 +101,14 @@ class PrefsHandler(tornado.web.RequestHandler):
             if keyword:
                 # Remove part of a document
                 response = yield motor.Op(collection.find_one,
-                                          {'id': identifier})
+                                          {'__id': identifier})
                 if response:
                     del response[keyword]
                     yield motor.Op(collection.save, response)
 
             elif identifier:
                 # Remove the document
-                yield motor.Op(collection.remove, {'id': identifier})
+                yield motor.Op(collection.remove, {'__id': identifier})
 
             else:
                 # Drop the collection
@@ -124,9 +131,13 @@ class PrefsHandler(tornado.web.RequestHandler):
                 collection = self.database[category]
 
                 document = yield motor.Op(collection.find_one,
-                                          {'id': identifier})
+                                          {'__id': identifier})
 
-                data = json.loads(self.request.body)
+                try:
+                    data = json.loads(self.request.body)
+                except:
+                    self.set_status(400)
+                    return
 
                 if keyword:
                     if document:
@@ -143,8 +154,6 @@ class PrefsHandler(tornado.web.RequestHandler):
                         document.update(new)
 
                         yield motor.Op(collection.save, document)
-                        del document['_id']
-                        self.write(document)
 
                     else:
                         # Create a new document
@@ -157,21 +166,17 @@ class PrefsHandler(tornado.web.RequestHandler):
                             else:
                                 document = {key: data}
 
-                        document['id'] = identifier
+                        document['__id'] = identifier
                         yield motor.Op(collection.save, document)
-                        del document['_id']
-                        self.write(document)
 
                 else:
                     if document:
                         document.update(data)
                     else:
-                        document = {'id': identifier}
+                        document = {'__id': identifier}
                         document.update(data)
 
                     yield motor.Op(collection.save, document)
-                    del document['_id']
-                    self.write(document)
 
             else:
                 # Create the specified collection
@@ -182,9 +187,6 @@ class PrefsHandler(tornado.web.RequestHandler):
                     response = yield motor.Op(self.database.collection_names)
                     if 'system.indexes' in response:
                         response.remove('system.indexes')
-
-                    self.set_header('Content-Type', 'application/json')
-                    self.write(json.dumps(response))
 
                 except CollectionInvalid:
                     self.set_status(409)
