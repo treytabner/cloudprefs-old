@@ -8,12 +8,57 @@ Cloud Preferences is built with Python and uses Tornado for the web framework pr
 
 ** Installation
 
+Install the Cloud Preferences API with:
+
 #+BEGIN_SRC sh
 pip install https://github.com/treytabner/python-cloudprefs.git
 #+END_SRC
 
+You'll likely want to run it via Supervisor and you should have a MongoDB instance to connect to, so install that too:
+
+#+BEGIN_SRC sh
+apt-get install supervisor mongodb-server
+#+END_SRC
+
 ** Configuration
+
+Configuration is done at runtime or with the Supervisor configuration file.  Create ~/etc/supervisor/conf.d/cloudprefs.conf~ with the following content:
+
+#+BEGIN_SRC conf
+[program:cloudprefs]
+command=python -m cloudprefs.server --listen_port=8080
+stdout_logfile=/var/log/cloudprefs.log
+stderr_logfile=/var/log/cloudprefs.log
+user=nobody
+group=nogroup
+numprocs=1
+autostart=true
+autorestart=true
+startsecs=10
+stopwaitsecs=10
+directory=/tmp
+#+END_SRC
 
 ** Starting services
 
+Once you have the configuration in place, add it to Supervisor:
+
+#+BEGIN_SRC sh
+supervisorctl update
+supervisorctl status
+#+END_SRC
+
+Or you can start it up manually:
+
+#+BEGIN_SRC sh
+python -m cloudprefs.server --help
+python -m cloudprefs.server --listen_port=8080
+#+END_SRC
+
 ** Testing & examples
+
+#+BEGIN_SRC sh
+pip install httpie
+echo '"secretpassword"' | http http://localhost:8080/servers/b36d8906-3b97-4e26-a501-e1f9191b8765/password
+http http://localhost:8080/servers/b36d8906-3b97-4e26-a501-e1f9191b8765/password
+#+END_SRC

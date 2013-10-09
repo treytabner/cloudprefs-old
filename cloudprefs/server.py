@@ -21,11 +21,14 @@ import tornado.ioloop
 import tornado.web
 
 from tornado import gen
+from tornado.options import define, options
 
 from pymongo.errors import CollectionInvalid
 
 
 DROP_DATABASE_ALLOWED = False
+
+define("listen_port", default="8080", help="TCP port to use")
 
 
 class PrefsHandler(tornado.web.RequestHandler):
@@ -37,7 +40,6 @@ class PrefsHandler(tornado.web.RequestHandler):
         self.tenant_id = self.request.headers.get('X-Tenant-Id')
         self.client = client
         self.database = self.client[self.tenant_id]
-        # http://motor.readthedocs.org/en/stable/api/motor_collection.html#motor.MotorCollection.ensure_index
 
     @gen.coroutine
     def prepare(self):
@@ -194,6 +196,12 @@ class PrefsHandler(tornado.web.RequestHandler):
 
 def main():
     """Setup the application and start listening for traffic"""
+    try:
+        tornado.options.parse_command_line()
+    except tornado.options.Error, e:
+        print(e)
+        return
+
     client = motor.MotorClient().open_sync()
     application = tornado.web.Application([
         (r"/(.*?)/(.*?)/(.*)", PrefsHandler, dict(client=client)),
@@ -201,8 +209,8 @@ def main():
         (r"/(.*?)", PrefsHandler, dict(client=client)),
     ])
 
-    print 'Listening on http://localhost:8888'
-    application.listen(8888)
+    print('Listening on http://localhost:%s' % options.listen_port)
+    application.listen(options.listen_port)
     tornado.ioloop.IOLoop.instance().start()
 
 
