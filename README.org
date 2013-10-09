@@ -1,6 +1,6 @@
 * Cloud Preferences API
 
-Cloud Preferences is a RESTful API designed to be work with OpenStack and Rackspace Cloud.  It let's you store and manage data associated with tenants, users, devices and more.
+Cloud Preferences provides a RESTful API and is designed to be work with OpenStack and Rackspace Cloud.  It let's you store and manage data associated with tenants, users, devices and more.
 
 ** Overview
 
