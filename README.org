@@ -8,16 +8,11 @@ Cloud Preferences is built with Python and uses Tornado for the web framework pr
 
 ** Installation
 
-Install the Cloud Preferences API with:
+Install the Cloud Preferences API, Supervisor, MongoDB and Memcached:
 
 #+BEGIN_SRC sh
+apt-get install supervisor mongodb-server memcached libmemcached-dev zlib1g-dev
 pip install https://github.com/treytabner/python-cloudprefs.git
-#+END_SRC
-
-You'll likely want to run it via Supervisor and you should have a MongoDB instance to connect to, so install that too:
-
-#+BEGIN_SRC sh
-apt-get install supervisor mongodb-server
 #+END_SRC
 
 ** Configuration
@@ -26,7 +21,10 @@ Configuration is done at runtime or with the Supervisor configuration file.  Cre
 
 #+BEGIN_SRC conf
 [program:cloudprefs]
-command=python -m cloudprefs.server --listen_port=8080
+command=python -m cloudprefs.server \
+    --port=8888 \
+    --identity=https://identity.api.rackspacecloud.com/v2.0 \
+    --memcached=localhost
 stdout_logfile=/var/log/cloudprefs.log
 stderr_logfile=/var/log/cloudprefs.log
 user=nobody
@@ -51,14 +49,13 @@ supervisorctl status
 Or you can start it up manually:
 
 #+BEGIN_SRC sh
-python -m cloudprefs.server --help
-python -m cloudprefs.server --listen_port=8080
+python -m cloudprefs.server
 #+END_SRC
 
 ** Testing & examples
 
 #+BEGIN_SRC sh
 pip install httpie
-echo '"secretpassword"' | http http://localhost:8080/servers/b36d8906-3b97-4e26-a501-e1f9191b8765/password
-http http://localhost:8080/servers/b36d8906-3b97-4e26-a501-e1f9191b8765/password
+echo '"secretpassword"' | http http://localhost:8888/servers/b36d8906-3b97-4e26-a501-e1f9191b8765/password
+http http://localhost:8888/servers/b36d8906-3b97-4e26-a501-e1f9191b8765/password
 #+END_SRC
