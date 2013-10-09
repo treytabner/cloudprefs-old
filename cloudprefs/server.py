@@ -1,3 +1,5 @@
+"""Cloud Preferences API"""
+
 # Copyright 2013 Trey Tabner
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,11 +24,13 @@ from tornado import gen
 
 
 class PrefsHandler(tornado.web.RequestHandler):
+    """Cloud Preferences Request Handler"""
+
     @gen.coroutine
     def initialize(self, client):
         """Verify authentication and setup database access"""
         tenant_id = self.request.headers.get('X-Tenant-Id')
-        self.db = client[tenant_id]
+        self.database = client[tenant_id]
 
     @gen.coroutine
     def get(self, category=None, identifier=None, keyword=None):
@@ -35,15 +39,13 @@ class PrefsHandler(tornado.web.RequestHandler):
 
         if not category:
             # List all collections
-            response = yield motor.Op(self.db.collection_names)
-            try:
+            response = yield motor.Op(self.database.collection_names)
+            if 'system.indexes' in response:
                 response.remove('system.indexes')
-            except:
-                pass
 
         elif not identifier:
             # List all documents
-            collection = self.db[category]
+            collection = self.database[category]
             cursor = collection.find({}, {'_id': 0, 'id': 1})
             response = []
             results = yield motor.Op(cursor.to_list, length=10)
@@ -55,8 +57,10 @@ class PrefsHandler(tornado.web.RequestHandler):
                     response.append(result['id'])
 
         else:
-            collection = self.db[category]
-            response = yield motor.Op(collection.find_one, {'id': identifier}, {'_id': 0})
+            collection = self.database[category]
+            response = yield motor.Op(collection.find_one,
+                                      {'id': identifier},
+                                      {'_id': 0})
 
             if keyword:
                 # Return the whole document
@@ -74,6 +78,7 @@ class PrefsHandler(tornado.web.RequestHandler):
 
 
 def main():
+    """Setup the application and start listening for traffic"""
     client = motor.MotorClient().open_sync()
     application = tornado.web.Application([
         (r"/(.*?)/(.*?)/(.*)", PrefsHandler, dict(client=client)),
