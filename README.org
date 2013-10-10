@@ -6,6 +6,14 @@ Cloud Preferences provides a RESTful API and is designed to be work with OpenSta
 
 Cloud Preferences is built with Python and uses Tornado for the web framework providing asynchronous networking and Motor for non-blocking MongoDB support.
 
+** TODO
+
+- Add OpenStack Identity integration for verifying tokens
+- Cleanup and optimization
+- API documentation
+- More error handling
+- Create a client for load testing
+
 ** Installation
 
 Install the Cloud Preferences API, Supervisor, MongoDB and Memcached:

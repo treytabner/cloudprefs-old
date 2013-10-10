@@ -25,10 +25,14 @@ from tornado.options import define, options
 
 from pymongo.errors import CollectionInvalid
 
+from cloudprefs import identity
 
-DROP_DATABASE_ALLOWED = False
 
-define("listen_port", default="8080", help="TCP port to use")
+define("port", default="8888", help="TCP port to use for web service")
+define("identity", default="https://identity.api.rackspacecloud.com/v2.0",
+       help="Endpoint for OpenStack Identity Service")
+define("memcached", default="127.0.0.1:11211",
+       help="Host with Memcached service")
 
 
 class PrefsHandler(tornado.web.RequestHandler):
@@ -117,11 +121,7 @@ class PrefsHandler(tornado.web.RequestHandler):
                 yield motor.Op(collection.drop)
 
         else:
-            # Delete the whole database -- probably not a good idea...
-            if DROP_DATABASE_ALLOWED:
-                yield motor.Op(self.client.drop_database, self.tenant_id)
-            else:
-                self.set_status(403)
+            yield motor.Op(self.client.drop_database, self.tenant_id)
 
     @gen.coroutine
     def post(self, category=None, identifier=None, keyword=None):
@@ -209,8 +209,8 @@ def main():
         (r"/(.*?)", PrefsHandler, dict(client=client)),
     ])
 
-    print('Listening on http://localhost:%s' % options.listen_port)
-    application.listen(options.listen_port)
+    print('Listening on http://localhost:%s' % options.port)
+    application.listen(options.port)
     tornado.ioloop.IOLoop.instance().start()
 
 
