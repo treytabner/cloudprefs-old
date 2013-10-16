@@ -25,14 +25,9 @@ from tornado.options import define, options
 
 from pymongo.errors import CollectionInvalid
 
-from cloudprefs import identity
 
-
-define("port", default="8888", help="TCP port to use for web service")
-define("identity", default="https://identity.api.rackspacecloud.com/v2.0",
-       help="Endpoint for OpenStack Identity Service")
-define("memcached", default="127.0.0.1:11211",
-       help="Host with Memcached service")
+define("port", default="8888", help="Port to listen on")
+define("mongodb", default="127.0.0.1:27017", help="MongoDB host or hosts")
 
 
 class PrefsHandler(tornado.web.RequestHandler):
@@ -202,7 +197,7 @@ def main():
         print(e)
         return
 
-    client = motor.MotorClient().open_sync()
+    client = motor.MotorClient(options.mongodb).open_sync()
     application = tornado.web.Application([
         (r"/(.*?)/(.*?)/(.*)", PrefsHandler, dict(client=client)),
         (r"/(.*?)/(.*?)", PrefsHandler, dict(client=client)),

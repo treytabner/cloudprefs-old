@@ -6,20 +6,12 @@ Cloud Preferences provides a RESTful API and is designed to be work with OpenSta
 
 Cloud Preferences is built with Python and uses Tornado for the web framework providing asynchronous networking and Motor for non-blocking MongoDB support.
 
-** Todo
-
-- Add OpenStack Identity integration for verifying tokens
-- Cleanup and optimization
-- API documentation
-- More error handling
-- Create a client for load testing
-
 ** Installation
 
 Install the Cloud Preferences API, Supervisor, MongoDB and Memcached:
 
 #+BEGIN_SRC sh
-apt-get install supervisor mongodb-server memcached libmemcached-dev zlib1g-dev
+apt-get install supervisor mongodb-server
 pip install https://github.com/treytabner/python-cloudprefs.git
 #+END_SRC
 
@@ -29,10 +21,9 @@ Configuration is done at runtime or with the Supervisor configuration file.  Cre
 
 #+BEGIN_SRC conf
 [program:cloudprefs]
-command=python -m cloudprefs.server \
+command=python -m cloudprefs \
     --port=8888 \
-    --identity=https://identity.api.rackspacecloud.com/v2.0 \
-    --memcached=localhost
+    --mongodb=127.0.0.1:27017
 stdout_logfile=/var/log/cloudprefs.log
 stderr_logfile=/var/log/cloudprefs.log
 user=nobody
@@ -57,7 +48,7 @@ supervisorctl status
 Or you can start it up manually:
 
 #+BEGIN_SRC sh
-python -m cloudprefs.server
+python -m cloudprefs
 #+END_SRC
 
 ** Testing & examples
