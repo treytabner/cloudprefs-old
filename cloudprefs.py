@@ -204,7 +204,7 @@ def main():
         (r"/(.*?)", PrefsHandler, dict(client=client)),
     ])
 
-    print('Listening on http://localhost:%s' % options.port)
+    print('Listening on http://0.0.0.0:%s' % options.port)
     application.listen(options.port)
     tornado.ioloop.IOLoop.instance().start()
 
