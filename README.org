@@ -11,7 +11,7 @@ Cloud Preferences is built with Python and uses Tornado for the web framework pr
 Install the Cloud Preferences API, Supervisor, MongoDB and Memcached:
 
 #+BEGIN_SRC sh
-apt-get install supervisor mongodb-server python-pip python-dev git
+apt-get install supervisor mongodb-server nginx python-pip python-dev git htop dstat
 pip install git+https://github.com/treytabner/python-cloudprefs.git
 #+END_SRC
 
@@ -21,20 +21,48 @@ Configuration is done at runtime or with the Supervisor configuration file.  Cre
 
 #+BEGIN_SRC conf
 [program:cloudprefs]
-command=python -m cloudprefs \
-    --port=8888 \
-    --mongodb=127.0.0.1:27017
+process_name=cloudprefs:%(process_num)s
+command=python -m cloudprefs --port=%(process_num)s --mongodb=127.0.0.1:27017
 stdout_logfile=/var/log/cloudprefs.log
 stderr_logfile=/var/log/cloudprefs.log
 user=nobody
 group=nogroup
-numprocs=1
 autostart=true
 autorestart=true
 startsecs=10
 stopwaitsecs=10
 directory=/tmp
+numprocs=8
+numprocs_start=8001
 #+END_SRC
+
+Configure Nginx by creating /etc/nginx/sites-enabled/default with the following configuration:
+
+#+BEGIN_SRC conf
+upstream cloudprefs {
+    server 127.0.0.1:8001 max_fails=3 fail_timeout=1s;
+    server 127.0.0.1:8002 max_fails=3 fail_timeout=1s;
+    server 127.0.0.1:8003 max_fails=3 fail_timeout=1s;
+    server 127.0.0.1:8004 max_fails=3 fail_timeout=1s;
+    server 127.0.0.1:8005 max_fails=3 fail_timeout=1s;
+    server 127.0.0.1:8006 max_fails=3 fail_timeout=1s;
+    server 127.0.0.1:8007 max_fails=3 fail_timeout=1s;
+    server 127.0.0.1:8008 max_fails=3 fail_timeout=1s;
+}
+
+server {
+    listen 0.0.0.0:80;
+    server_name localhost;
+    access_log /var/log/nginx/cloudprefs.log main;
+    location / {
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-Ip $remote_addr;
+        proxy_pass http://cloudprefs/;
+    }
+}
+#+END_SRC
+
+You may also want to adjust ~worker_connections~ in /etc/nginx/nginx.conf to something higher.
 
 ** Starting services
 
@@ -43,6 +71,7 @@ Once you have the configuration in place, add it to Supervisor:
 #+BEGIN_SRC sh
 supervisorctl update
 supervisorctl status
+service nginx restart
 #+END_SRC
 
 Or you can start it up manually:
