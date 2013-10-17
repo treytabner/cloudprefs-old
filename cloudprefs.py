@@ -23,45 +23,35 @@ import tornado.web
 from tornado import gen
 from tornado.options import define, options
 
-from pymongo.errors import CollectionInvalid
-
 
 define("port", default="8888", help="Port to listen on")
 define("mongodb", default="127.0.0.1:27017", help="MongoDB host or hosts")
+define("database", default="cloudprefs", help="Database name")
 
 
 class PrefsHandler(tornado.web.RequestHandler):
     """Cloud Preferences Request Handler"""
 
     @gen.coroutine
-    def initialize(self, client):
+    def initialize(self, database):
         """Verify authentication and setup database access"""
-        self.tenant_id = self.request.headers.get('X-Tenant-Id')
-        self.client = client
-        self.database = self.client[self.tenant_id]
+        self.collection = database[self.request.headers.get('X-Tenant-Id')]
 
     @gen.coroutine
     def prepare(self):
-        """Make sure we have a valid database"""
-        if not self.tenant_id or not self.database:
+        """Make sure we have a valid collection to work with"""
+        if not self.collection:
             self.set_status(401)
             self.finish()
 
     @gen.coroutine
-    def get(self, category=None, identifier=None, keyword=None):
+    def get(self, identifier=None, keyword=None):
         """Return a document or part of a document for specified entity"""
         response = None
 
-        if not category:
-            # List all collections
-            response = yield motor.Op(self.database.collection_names)
-            if 'system.indexes' in response:
-                response.remove('system.indexes')
-
-        elif not identifier:
+        if not identifier:
             # List all documents
-            collection = self.database[category]
-            cursor = collection.find({}, {'_id': 0, '__id': 1})
+            cursor = self.collection.find({}, {'_id': 0, '__id': 1})
             response = []
             results = yield motor.Op(cursor.to_list, length=10)
             for result in results:
@@ -74,8 +64,7 @@ class PrefsHandler(tornado.web.RequestHandler):
                         response.append(result['__id'])
 
         else:
-            collection = self.database[category]
-            response = yield motor.Op(collection.find_one,
+            response = yield motor.Op(self.collection.find_one,
                                       {'__id': identifier},
                                       {'_id': 0, '__id': 0})
 
@@ -94,99 +83,83 @@ class PrefsHandler(tornado.web.RequestHandler):
             self.set_status(404)
 
     @gen.coroutine
-    def delete(self, category=None, identifier=None, keyword=None):
-        """Delete a collection, document or part of a document"""
-        if category:
-            collection = self.database[category]
+    def delete(self, identifier=None, keyword=None):
+        """Delete a document or part of a document"""
+        if keyword:
+            # Remove part of a document
+            response = yield motor.Op(self.collection.find_one,
+                                      {'__id': identifier})
+            if response:
+                del response[keyword]
+                yield motor.Op(self.collection.save, response)
 
-            if keyword:
-                # Remove part of a document
-                response = yield motor.Op(collection.find_one,
-                                          {'__id': identifier})
-                if response:
-                    del response[keyword]
-                    yield motor.Op(collection.save, response)
-
-            elif identifier:
-                # Remove the document
-                yield motor.Op(collection.remove, {'__id': identifier})
-
-            else:
-                # Drop the collection
-                yield motor.Op(collection.drop)
+        elif identifier:
+            # Remove the document
+            yield motor.Op(self.collection.remove, {'__id': identifier})
 
         else:
-            yield motor.Op(self.client.drop_database, self.tenant_id)
+            # Drop the collection
+            yield motor.Op(self.collection.drop)
 
     @gen.coroutine
-    def post(self, category=None, identifier=None, keyword=None):
+    def post(self, identifier=None, keyword=None):
         """Create a new document, collection or database"""
-        if category:
-            collection = self.database[category]
+        if identifier:
+            document = yield motor.Op(self.collection.find_one,
+                                      {'__id': identifier})
 
-            if identifier:
-                collection = self.database[category]
+            try:
+                data = json.loads(self.request.body)
+            except:
+                self.set_status(400)
+                return
 
-                document = yield motor.Op(collection.find_one,
-                                          {'__id': identifier})
+            if keyword:
+                if document:
+                    keys = keyword.split('/')
 
-                try:
-                    data = json.loads(self.request.body)
-                except:
-                    self.set_status(400)
-                    return
+                    new = None
+                    while keys:
+                        key = keys.pop()
+                        if new:
+                            new = {key: new}
+                        else:
+                            new = {key: data}
 
-                if keyword:
-                    if document:
-                        keys = keyword.split('/')
+                    document.update(new)
 
-                        new = None
-                        while keys:
-                            key = keys.pop()
-                            if new:
-                                new = {key: new}
-                            else:
-                                new = {key: data}
-
-                        document.update(new)
-
-                        yield motor.Op(collection.save, document)
-
-                    else:
-                        # Create a new document
-                        keys = keyword.split('/')
-
-                        while keys:
-                            key = keys.pop()
-                            if document:
-                                document = {key: document}
-                            else:
-                                document = {key: data}
-
-                        document['__id'] = identifier
-                        yield motor.Op(collection.save, document)
+                    yield motor.Op(self.collection.save, document)
 
                 else:
+                    # Create a new document
+                    keys = keyword.split('/')
+
+                    while keys:
+                        key = keys.pop()
+                        if document:
+                            document = {key: document}
+                        else:
+                            document = {key: data}
+
+                    document['__id'] = identifier
+                    yield motor.Op(self.collection.save, document)
+
+            else:
+                try:
                     if document:
                         document.update(data)
                     else:
                         document = {'__id': identifier}
                         document.update(data)
+                except ValueError:
+                    self.set_status(400)
+                    return
 
-                    yield motor.Op(collection.save, document)
+                yield motor.Op(self.collection.save, document)
 
-            else:
-                # Create the specified collection
-                try:
-                    yield motor.Op(self.database.create_collection, category)
-
-                    # And return a list of all collections
-                    response = yield motor.Op(self.database.collection_names)
-                    if 'system.indexes' in response:
-                        response.remove('system.indexes')
-
-                except CollectionInvalid:
-                    self.set_status(409)
+        else:
+            self.set_status(400)
+            return
 
 
 def main():
@@ -198,10 +171,10 @@ def main():
         return
 
     client = motor.MotorClient(options.mongodb).open_sync()
+    database = client[options.database]
     application = tornado.web.Application([
-        (r"/(.*?)/(.*?)/(.*)", PrefsHandler, dict(client=client)),
-        (r"/(.*?)/(.*?)", PrefsHandler, dict(client=client)),
-        (r"/(.*?)", PrefsHandler, dict(client=client)),
+        (r"/(.*?)/(.*)", PrefsHandler, dict(database=database)),
+        (r"/(.*?)", PrefsHandler, dict(database=database)),
     ])
 
     print('Listening on http://0.0.0.0:%s' % options.port)
