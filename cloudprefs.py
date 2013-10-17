@@ -35,12 +35,14 @@ class PrefsHandler(tornado.web.RequestHandler):
     @gen.coroutine
     def initialize(self, database):
         """Verify authentication and setup database access"""
-        self.collection = database[self.request.headers.get('X-Tenant-Id')]
+        headers = self.request.headers
+        collection = headers.get('X-Project-Id', headers.get('X-Tenant-Id'))
+        self.collection = database[collection]
 
     @gen.coroutine
     def prepare(self):
         """Make sure we have a valid collection to work with"""
-        if not self.collection:
+        if 'collection' not in dir(self):
             self.set_status(401)
             self.finish()
 
