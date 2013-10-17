@@ -75,14 +75,16 @@ You may also want to adjust ~worker_connections~ in /etc/nginx/nginx.conf to som
 Once you have the configuration in place, add it to Supervisor:
 
 #+BEGIN_SRC sh
+service nginx restart
 supervisorctl update
 supervisorctl status
-service nginx restart
+tail -f /var/log/cloudprefs.log
 #+END_SRC
 
 Or you can start it up manually:
 
 #+BEGIN_SRC sh
+python -m cloudprefs --help
 python -m cloudprefs
 #+END_SRC
 
@@ -90,6 +92,14 @@ python -m cloudprefs
 
 #+BEGIN_SRC sh
 pip install httpie
-echo '"secretpassword"' | http http://localhost:8888/servers/b36d8906-3b97-4e26-a501-e1f9191b8765/password X-Tenant-Id:123456
-http http://localhost:8888/servers/b36d8906-3b97-4e26-a501-e1f9191b8765/password X-Tenant-Id:123456
+# Store my favorite drink
+echo '"drink": "coffee"' | http http://localhost:8888/favorites X-Project-Id:trey
+# Store a list of favorite fruits
+echo '["apple", "banana", "orange"]' | http http://localhost:8888/favorites/fruits X-Project-Id:trey
+# Retrieve a list of favorite fruits
+http http://localhost:8888/favorites/fruits X-Project-Id:trey
+# Retrieve a list of categories to explore
+http http://localhost:8888 X-Project-Id:trey
+# Fetch everything for a specific category
+http http://localhost:8888/favorites X-Project-Id:trey
 #+END_SRC
