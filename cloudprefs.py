@@ -110,11 +110,14 @@ class PrefsHandler(tornado.web.RequestHandler):
             document = yield motor.Op(self.collection.find_one,
                                       {'__id': identifier})
 
-            try:
-                data = json.loads(self.request.body)
-            except:
-                self.set_status(400)
-                return
+            if self.request.body:
+                try:
+                    data = json.loads(self.request.body)
+                except:
+                    self.set_status(400)
+                    return
+            else:
+                data = {}
 
             if keyword:
                 if document:
