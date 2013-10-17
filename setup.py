@@ -5,7 +5,7 @@ from setuptools import setup
 
 setup(
     name='cloudprefs',
-    version='0.1',
+    version='0.2',
     description='Cloud Preferences API',
     long_description='Cloud Preferences API for use with OpenStack',
     author='Trey Tabner',
@@ -19,7 +19,7 @@ setup(
         'motor',
     ],
     classifiers=[
-        'Development Status :: 3 - Alpha',
+        'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
         'Intended Audience :: System Administrators',
         'License :: OSI Approved :: Apache Software License',
