@@ -92,6 +92,8 @@ python -m cloudprefs
 
 #+BEGIN_SRC sh
 pip install httpie
+# Store my favorite color
+echo '"blue"' | http http://localhost:8888/favorites/color X-Project-Id:trey
 # Store my favorite drink
 echo '"drink": "coffee"' | http http://localhost:8888/favorites X-Project-Id:trey
 # Store a list of favorite fruits
