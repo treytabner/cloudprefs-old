@@ -89,11 +89,32 @@ class PrefsHandler(tornado.web.RequestHandler):
         """Delete a document or part of a document"""
         if keyword:
             # Remove part of a document
-            response = yield motor.Op(self.collection.find_one,
+            document = yield motor.Op(self.collection.find_one,
                                       {'__id': identifier})
-            if response:
-                del response[keyword]
-                yield motor.Op(self.collection.save, response)
+            if document:
+                print "found: %s" % document
+                print "keyword: %s" % keyword
+
+                keys = keyword.split('/')
+
+                parent = None
+                new = None
+                while keys:
+                    if new:
+                        key = keys.pop(0)
+                        if parent:
+                            parent = parent[key]
+                        else:
+                            parent = document[key]
+                    else:
+                        new = keys.pop()
+
+                if parent:
+                    del parent[new]
+                else:
+                    del document[new]
+
+                yield motor.Op(self.collection.save, document)
 
         elif identifier:
             # Remove the document
@@ -123,15 +144,25 @@ class PrefsHandler(tornado.web.RequestHandler):
                 if document:
                     keys = keyword.split('/')
 
+                    parent = None
                     new = None
                     while keys:
-                        key = keys.pop()
                         if new:
-                            new = {key: new}
+                            key = keys.pop(0)
+                            if parent:
+                                try:
+                                    parent = parent[key]
+                                except KeyError:
+                                    new = {key: new}
+                            else:
+                                parent = document[key]
                         else:
-                            new = {key: data}
+                            new = {keys.pop(): data}
 
-                    document.update(new)
+                    if parent:
+                        parent.update(new)
+                    else:
+                        document.update(new)
 
                     yield motor.Op(self.collection.save, document)
 
