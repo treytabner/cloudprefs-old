@@ -96,7 +96,7 @@ The Cloud Preferences API uses a concept of organizing data into specific contai
 
 There are plans to integrate the OpenStack Identity Service but you probably want to handle this through a proxy such as [[http://www.openrepose.org/][Repose]] instead.
 
-In addition to whatever headers you send for authentication (such as =X-Auth-Token=), you will want to supply the =X-Project-Id= or =X-Tenant-Id= header.  This is used to associate the data with the proper collection in MongoDB.
+In addition to whatever headers you send for authentication (such as =X-Auth-Token=), you will want to supply the =X-Tenant-Id= header.  This is used to associate the data with the proper collection in MongoDB.
 
 ** Endpoint
 

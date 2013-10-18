@@ -36,8 +36,8 @@ class PrefsHandler(tornado.web.RequestHandler):
     def initialize(self, database):
         """Verify authentication and setup database access"""
         headers = self.request.headers
-        collection = headers.get('X-Project-Id', headers.get('X-Tenant-Id'))
-        self.collection = database[collection]
+        self.tenant_id = headers.get('X-Tenant-Id')
+        self.collection = database[self.tenant_id]
 
     @gen.coroutine
     def prepare(self):
@@ -171,8 +171,8 @@ def main():
     """Setup the application and start listening for traffic"""
     try:
         tornado.options.parse_command_line()
-    except tornado.options.Error, e:
-        print(e)
+    except tornado.options.Error, exc:
+        print(exc)
         return
 
     client = motor.MotorClient(options.mongodb).open_sync()
