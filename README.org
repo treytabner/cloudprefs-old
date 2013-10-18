@@ -115,6 +115,7 @@ Possible HTTP status codes include:
 - 400: Bad request, possible invalid JSON or combination of data and key provided
 - 401: Forbidden, make sure you are passing the proper headers as described above
 - 404: Category or key not found from a GET request
+- 409: Problem storing data, conflict with a key detected
 - 500: Internal server error, please [[https://github.com/treytabner/python-cloudprefs/issues/new][submit a bug]] if this happens
 - 504: Gateway timeout, the load balancer, proxy or Nginx instance may be having a problem
 

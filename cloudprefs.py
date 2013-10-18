@@ -159,10 +159,14 @@ class PrefsHandler(tornado.web.RequestHandler):
                         else:
                             new = {keys.pop(): data}
 
-                    if parent:
-                        parent.update(new)
-                    else:
-                        document.update(new)
+                    try:
+                        if parent:
+                            parent.update(new)
+                        else:
+                            document.update(new)
+                    except AttributeError:
+                        self.set_status(409)
+                        return
 
                     yield motor.Op(self.collection.save, document)
 
