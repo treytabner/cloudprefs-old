@@ -1,12 +1,24 @@
-* Cloud Preferences API
+#+TITLE: Cloud Preferences
+#+AUTHOR: Trey Tabner
+#+EMAIL: trey@tabner.com
+#+OPTIONS: ':nil *:t -:t ::t <:t H:3 \n:nil ^:t arch:headline author:t c:nil
+#+OPTIONS: creator:comment d:(not LOGBOOK) date:t e:t email:nil f:t inline:t
+#+OPTIONS: num:t p:nil pri:nil stat:t tags:t tasks:t tex:t timestamp:t toc:t
+#+OPTIONS: todo:t |:t
+#+CREATOR: Emacs 24.3.1 (Org mode 8.2.1)
+#+DESCRIPTION:
+#+EXCLUDE_TAGS: noexport
+#+KEYWORDS:
+#+LANGUAGE: en
+#+SELECT_TAGS: export
+
+* Overview
 
 Cloud Preferences provides a RESTful API and is designed to be work with OpenStack and Rackspace Cloud.  It let's you store and manage data associated with tenants, users, devices and more.
 
-** Overview
-
 Cloud Preferences is built with Python and uses Tornado for the web framework providing asynchronous networking and Motor for non-blocking MongoDB support.
 
-** Installation
+* Installation
 
 Install the Cloud Preferences API, Supervisor, MongoDB and Memcached:
 
@@ -15,9 +27,11 @@ apt-get install supervisor mongodb-server nginx python-pip python-dev git htop d
 pip install git+https://github.com/treytabner/python-cloudprefs.git
 #+END_SRC
 
-** Configuration
+* Configuration
 
-Configuration is done at runtime or with the Supervisor configuration file.  Create ~/etc/supervisor/conf.d/cloudprefs.conf~ with the following content:
+The examples below are assuming you are deploying to a server with 8 cores.  If you have more or less, please make sure to put the appropriate value for =numprocs= and update the Nginx upstream configuration to match.
+
+Configuration is done at runtime or with the Supervisor configuration file.  Create =/etc/supervisor/conf.d/cloudprefs.conf= with the following content:
 
 #+BEGIN_SRC conf
 [program:cloudprefs]
@@ -38,11 +52,11 @@ numprocs_start=8001
 
 To support a cluster of MongoDB hosts, use something like:
 
-#+BEGIN_SRC conf
+#+BEGIN_SRC
 --mongodb=10.0.0.1:27017,10.0.0.2:27017,10.0.0.3:27017
 #+END_SRC
 
-Configure Nginx by creating /etc/nginx/sites-enabled/default with the following configuration:
+Configure Nginx by creating =/etc/nginx/sites-enabled/default= with the following configuration:
 
 #+BEGIN_SRC conf
 upstream cloudprefs {
@@ -68,9 +82,9 @@ server {
 }
 #+END_SRC
 
-You may also want to adjust ~worker_connections~ in /etc/nginx/nginx.conf to something higher.
+You may also want to adjust =worker_connections= in =/etc/nginx/nginx.conf= to something higher.
 
-** Starting services
+* Starting services
 
 Once you have the configuration in place, add it to Supervisor:
 
@@ -88,20 +102,146 @@ python -m cloudprefs --help
 python -m cloudprefs
 #+END_SRC
 
-** Testing & examples
+* API documentation
 
-#+BEGIN_SRC sh
-pip install httpie
-# Store my favorite color
-echo '"blue"' | http http://localhost:8888/favorites/color X-Project-Id:trey
-# Store my favorite drink
-echo '"drink": "coffee"' | http http://localhost:8888/favorites X-Project-Id:trey
-# Store a list of favorite fruits
-echo '["apple", "banana", "orange"]' | http http://localhost:8888/favorites/fruits X-Project-Id:trey
-# Retrieve a list of favorite fruits
-http http://localhost:8888/favorites/fruits X-Project-Id:trey
-# Retrieve a list of categories to explore
-http http://localhost:8888 X-Project-Id:trey
-# Fetch everything for a specific category
-http http://localhost:8888/favorites X-Project-Id:trey
+The Cloud Preferences API uses a concept of organizing data into specific containers.  Within each container you can store any data you want, in any structure you want, provided that it's JSON encodable.  Each tenant can have an almost unlimited number of containers--you are only limited by the number of documents that you may store in a single collection.  Each tenant or project has it's own collection in the database.
+
+** Authentication
+
+There are plans to integrate the OpenStack Identity Service but you probably want to handle this through a proxy such as [[http://www.openrepose.org/][Repose]] instead.
+
+In addition to whatever headers you send for authentication (such as =X-Auth-Token=), you will want to supply the =X-Project-Id= or =X-Tenant-Id= header.  This is used to associate the data with the proper collection in MongoDB.
+
+** Endpoint
+
+Assume your endpoint is running at http://localhost:8888/ unless you have specifically configured something else.
+
+** HTTP Actions
+
+All examples below use [[https://github.com/jkbr/httpie][HTTPie]].  Install it with =pip install httpie= or =apt-get install httpie=.
+
+JSON output is returned only for HTTP GET requests, not HTTP POST or DELETE requests.
+
+Possible HTTP status codes include:
+
+- 200: Successful request, response body presented for GET requests
+- 400: Bad request, possible invalid JSON or combination of data and key provided
+- 401: Forbidden, make sure you are passing the proper headers as described above
+- 404: Category or key not found from a GET request
+- 500: Internal server error, please [[https://github.com/treytabner/python-cloudprefs/issues/new][submit a bug]] if this happens
+- 504: Gateway timeout, the load balancer, proxy or Nginx instance may be having a problem
+
+*** Storing (POST)
+
+The action for HTTP POST is to create or update.  If the container doesn't already exist, it's created, otherwise it will be updated.
+
+To create a container, send an HTTP POST request to /<container>.  For example, to create an empty "defaults" container:
+
+#+BEGIN_SRC
+http POST http://localhost:8888/defaults X-Tenant-Id:100000
+#+END_SRC
+
+Note: /HTTPie defaults to the GET method unless you pipe in any data, in which case it uses the POST method./
+
+You can also specify a valid JSON document to populate a container.  If the container does not already exist, it will be created:
+
+#+BEGIN_SRC
+echo '{"build_config": ["monitoring", "backup"]}' | http http://localhost:8888/defaults X-Tenant-Id:100000
+#+END_SRC
+
+You can also simplify the request by specifying the key to store data in directly with the URL.  If data already exists for the specified key, it will be replaced.  For example:
+
+#+BEGIN_SRC
+echo '["monitoring", "backup"]' | http http://localhost:8888/defaults/build_config X-Tenant-Id:100000
+#+END_SRC
+
+#+BEGIN_SRC
+echo '"secretpassword"' | http http://localhost:8888/defaults/passwords/root X-Tenant-Id:100000
+#+END_SRC
+
+*** Retrieving (GET)
+
+To retrieve a list of any containers you may have, send an HTTP GET request to the root of the endpoint itself, for example:
+
+#+BEGIN_SRC
+http http://localhost:8888 X-Tenant-Id:100000
+#+END_SRC
+
+Response:
+
+#+BEGIN_SRC json
+[
+    "defaults"
+]
+#+END_SRC
+
+To retrieve details from a container, send an HTTP GET request to /<container>, for example, to retrieve data from the "defaults" container:
+
+#+BEGIN_SRC
+http http://localhost:8888/defaults X-Tenant-Id:100000
+#+END_SRC
+
+Response:
+
+#+BEGIN_SRC json
+{
+    "build_config": [
+        "monitoring",
+        "backup"
+    ],
+    "passwords": {
+        "root": "secretpassword"
+    }
+}
+#+END_SRC
+
+To retrieve specific details from a container, you can also specify a key.  For example:
+
+#+BEGIN_SRC
+http http://localhost:8888/defaults/build_config X-Tenant-Id:100000
+#+END_SRC
+
+Response:
+
+#+BEGIN_SRC json
+[
+    "monitoring",
+    "backup"
+]
+#+END_SRC
+
+You can also specify a path to the key:
+
+#+BEGIN_SRC
+http http://localhost:8888/defaults/passwords/root X-Tenant-Id:100000
+#+END_SRC
+
+Response:
+
+#+BEGIN_SRC json
+"secretpassword"
+#+END_SRC
+
+*** Removing (DELETE)
+
+To delete all of your containers and their data, send an HTTP DELETE request to the root of the endpoint itself, for example:
+
+#+BEGIN_SRC
+http DELETE http://localhost:8888 X-Tenant-Id:100000
+#+END_SRC
+
+To delete a specific container and it's data, send an HTTP DELETE request to the specific container.  To remove the "defaults" container that was created above, do:
+
+#+BEGIN_SRC
+http DELETE http://localhost:8888/defaults X-Tenant-Id:100000
+#+END_SRC
+
+You can also delete a specific key from a container:
+
+#+BEGIN_SRC
+http DELETE http://localhost:8888/defaults/build_options X-Tenant-Id:100000
+#+END_SRC
+
+#+BEGIN_SRC
+http DELETE http://localhost:8888/defaults/ssh_keys/root X-Tenant-Id:100000
 #+END_SRC
