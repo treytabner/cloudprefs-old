@@ -39,7 +39,7 @@ numprocs_start=8001
 To support a cluster of MongoDB hosts, use something like:
 
 #+BEGIN_SRC
---mongodb=10.0.0.1:27017,10.0.0.2:27017,10.0.0.3:27017
+python -m cloudprefs --mongodb=10.0.0.1:27017,10.0.0.2:27017,10.0.0.3:27017
 #+END_SRC
 
 Configure Nginx by creating =/etc/nginx/sites-enabled/default= with the following configuration:
@@ -100,7 +100,7 @@ In addition to whatever headers you send for authentication (such as =X-Auth-Tok
 
 ** Endpoint
 
-Assume your endpoint is running at http://localhost:8888/ unless you have specifically configured something else.
+Assume your endpoint is running at http://localhost:8888/ unless you have specifically configured something else.  Normally you would want to deploy at something other than the root (/) so that you support multiple API versions in the future.
 
 ** HTTP Actions
 
