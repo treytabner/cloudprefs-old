@@ -110,7 +110,8 @@ JSON output is returned only for HTTP GET requests, not HTTP POST or DELETE requ
 
 Possible HTTP status codes include:
 
-- 200: Successful request, response body presented for GET requests
+- 200: Successful request with content
+- 204: Successful request with no content (from a POST request)
 - 400: Bad request, possible invalid JSON or combination of data and key provided
 - 401: Forbidden, make sure you are passing the proper headers as described above
 - 404: Category or key not found from a GET request

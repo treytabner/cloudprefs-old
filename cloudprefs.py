@@ -162,6 +162,9 @@ class PrefsHandler(tornado.web.RequestHandler):
 
                 yield motor.Op(self.collection.save, document)
 
+            self.set_status(204)
+            return
+
         else:
             self.set_status(400)
             return
