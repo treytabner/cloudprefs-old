@@ -28,7 +28,16 @@ from multiprocessing import Process
 
 ENDPOINT = os.environ.get('ENDPOINT', 'http://localhost:8888')
 START = int(os.environ.get('START', 100000))
-MAX = int(os.environ.get('MAX', 1000))  # Simulate 1000 users at once
+MAX = int(os.environ.get('MAX', 10))  # Simulate 1000 users at once
+
+DISTROS = [
+    'org.ubuntu',
+    'com.ubuntu',
+    'com.redhat',
+    'org.centos',
+    'org.debian',
+    'com.microsoft.server',
+]
 
 
 def random_password(size=12, chars=string.letters + string.digits):
@@ -62,10 +71,13 @@ def delete(tenant_id, url):
 
 
 def simulate(tenant_id):
+    response = delete(tenant_id, '')
+    assert response.status_code == 204
+
     response = post(tenant_id,
                     'managed_cloud/build_config',
                     payload=['driveclient', 'monitoring'])
-    assert response.status_code == 200
+    assert response.status_code == 204
 
     response = get(tenant_id, 'managed_cloud/build_config')
     assert response.status_code == 200
@@ -74,14 +86,20 @@ def simulate(tenant_id):
 
     devices = [uuid.uuid4() for x in range(int(os.environ.get('DEVICES', 10)))]
     for device in devices:
-        password = random_password()
-        response = post(tenant_id, 'devices/%s/password' % device,
-                        payload=password)
-        assert response.status_code == 200
+        current = random_password()
+        updated = int(time.time())
+        payload = {
+            "current": current,
+            "updated": updated,
+            "distro": random.choice(DISTROS),
+        }
+        response = post(tenant_id, '%s/password' % device,
+                        payload=payload)
+        assert response.status_code == 204
 
-        response = get(tenant_id, 'devices/%s/password' % device)
+        response = get(tenant_id, '%s/password' % device)
         assert response.status_code == 200
-        assert password == response.json()
+        assert payload == response.json()
 
 
 def main():
