@@ -155,7 +155,10 @@ class PrefsHandler(tornado.web.RequestHandler):
                                 except KeyError:
                                     new = {key: new}
                             else:
-                                parent = document[key]
+                                try:
+                                    parent = document[key]
+                                except KeyError:
+                                    new = {key: new}
                         else:
                             new = {keys.pop(): data}
 
