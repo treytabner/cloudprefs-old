@@ -138,6 +138,8 @@ class PrefsHandler(tornado.web.RequestHandler):
             # Drop the collection
             yield motor.Op(self.collection.drop)
 
+        self.set_status(204)
+
     @gen.coroutine
     def post(self, identifier=None, keyword=None):
         """Create a new document, collection or database"""
