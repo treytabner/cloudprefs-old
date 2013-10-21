@@ -149,24 +149,25 @@ class PrefsHandler(tornado.web.RequestHandler):
                     while keys:
                         if new:
                             key = keys.pop(0)
-                            if parent:
+                            if parent is not None:
                                 try:
                                     parent = parent[key]
                                 except KeyError:
                                     new = {key: new}
                             else:
-                                try:
-                                    parent = document[key]
-                                except KeyError:
-                                    new = {key: new}
+                                if key not in document:
+                                    document[key] = {}
+                                parent = document[key]
+
                         else:
                             new = {keys.pop(): data}
 
                     try:
-                        if parent:
+                        if parent is not None:
                             parent.update(new)
                         else:
                             document.update(new)
+
                     except AttributeError:
                         self.set_status(409)
                         return
