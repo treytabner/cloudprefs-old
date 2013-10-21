@@ -28,7 +28,7 @@ from multiprocessing import Process
 
 ENDPOINT = os.environ.get('ENDPOINT', 'http://localhost:8888')
 START = int(os.environ.get('START', 100000))
-MAX = int(os.environ.get('MAX', 10))  # Simulate 1000 users at once
+MAX = int(os.environ.get('MAX', 1000))  # Simulate 1000 users at once
 
 DISTROS = [
     'org.ubuntu',
