@@ -53,7 +53,17 @@ class PrefsHandler(tornado.web.RequestHandler):
 
         if not identifier:
             # List all documents
-            cursor = self.collection.find({}, {'_id': 0, '__id': 1})
+
+            if self.request.body:
+                try:
+                    search = json.loads(self.request.body)
+                except:
+                    self.set_status(400)
+                    return
+            else:
+                search = {}
+
+            cursor = self.collection.find(search, {'_id': 0, '__id': 1})
             response = []
             results = yield motor.Op(cursor.to_list, length=10)
             for result in results:
@@ -66,6 +76,10 @@ class PrefsHandler(tornado.web.RequestHandler):
                         response.append(result['__id'])
 
         else:
+            if self.request.body:
+                self.set_status(400)
+                return
+
             response = yield motor.Op(self.collection.find_one,
                                       {'__id': identifier},
                                       {'_id': 0, '__id': 0})
