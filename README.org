@@ -1,6 +1,6 @@
 * Overview
 
-Cloud Preferences provides a RESTful API and is designed to be work with OpenStack and Rackspace Cloud.  It let's you store and manage data associated with tenants, users, devices and more.
+Cloud Preferences provides a RESTful API and is designed to be work with OpenStack and Rackspace Cloud.  It let's you store and manage data associated with users, devices and more.
 
 Cloud Preferences is built with Python and uses Tornado for the web framework providing asynchronous networking and Motor for non-blocking MongoDB support.
 
@@ -90,13 +90,13 @@ python -m cloudprefs
 
 * API documentation
 
-The Cloud Preferences API uses a concept of organizing data into specific containers.  Within each container you can store any data you want, in any structure you want, provided that it's JSON encodable.  Each tenant can have an almost unlimited number of containers--you are only limited by the number of documents that you may store in a single collection.  Each tenant or project has it's own collection in the database.
+The Cloud Preferences API uses a concept of organizing data into specific containers.  Within each container you can store any data you want, in any structure you want, provided that it's JSON encodable.  Each user can have an almost unlimited number of containers--you are only limited by the number of documents that you may store in a single collection.
 
 ** Authentication
 
 There are plans to integrate the OpenStack Identity Service but you probably want to handle this through a proxy such as [[http://www.openrepose.org/][Repose]] instead.
 
-In addition to whatever headers you send for authentication (such as =X-Auth-Token=), you will want to supply the =X-Tenant-Id= header.  This is used to associate the data with the proper collection in MongoDB.
+In addition to whatever headers you send for authentication (such as =X-Auth-Token=), you will want to supply the =X-User-Id= header.  This is used to associate the data with the proper collection in MongoDB.
 
 ** Endpoint
 
@@ -126,7 +126,7 @@ The action for HTTP POST is to create or update.  If the container doesn't alrea
 To create a container, send an HTTP POST request to /<container>.  For example, to create an empty "defaults" container:
 
 #+BEGIN_SRC
-http POST http://localhost:8888/defaults X-Tenant-Id:100000
+http POST http://localhost:8888/defaults X-User-Id:username
 #+END_SRC
 
 Note: /HTTPie defaults to the GET method unless you pipe in any data, in which case it uses the POST method./
@@ -134,17 +134,17 @@ Note: /HTTPie defaults to the GET method unless you pipe in any data, in which c
 You can also specify a valid JSON document to populate a container.  If the container does not already exist, it will be created:
 
 #+BEGIN_SRC
-echo '{"build_config": ["monitoring", "backup"]}' | http http://localhost:8888/defaults X-Tenant-Id:100000
+echo '{"build_config": ["monitoring", "backup"]}' | http http://localhost:8888/defaults X-User-Id:username
 #+END_SRC
 
 You can also simplify the request by specifying the key to store data in directly with the URL.  If data already exists for the specified key, it will be replaced.  For example:
 
 #+BEGIN_SRC
-echo '["monitoring", "backup"]' | http http://localhost:8888/defaults/build_config X-Tenant-Id:100000
+echo '["monitoring", "backup"]' | http http://localhost:8888/defaults/build_config X-User-Id:username
 #+END_SRC
 
 #+BEGIN_SRC
-echo '"secretpassword"' | http http://localhost:8888/defaults/passwords/root X-Tenant-Id:100000
+echo '"secretpassword"' | http http://localhost:8888/defaults/passwords/root X-User-Id:username
 #+END_SRC
 
 *** Retrieving (GET)
@@ -152,7 +152,7 @@ echo '"secretpassword"' | http http://localhost:8888/defaults/passwords/root X-T
 To retrieve a list of any containers you may have, send an HTTP GET request to the root of the endpoint itself, for example:
 
 #+BEGIN_SRC
-http http://localhost:8888 X-Tenant-Id:100000
+http http://localhost:8888 X-User-Id:username
 #+END_SRC
 
 Response:
@@ -166,7 +166,7 @@ Response:
 To retrieve details from a container, send an HTTP GET request to /<container>, for example, to retrieve data from the "defaults" container:
 
 #+BEGIN_SRC
-http http://localhost:8888/defaults X-Tenant-Id:100000
+http http://localhost:8888/defaults X-User-Id:username
 #+END_SRC
 
 Response:
@@ -186,7 +186,7 @@ Response:
 To retrieve specific details from a container, you can also specify a key.  For example:
 
 #+BEGIN_SRC
-http http://localhost:8888/defaults/build_config X-Tenant-Id:100000
+http http://localhost:8888/defaults/build_config X-User-Id:username
 #+END_SRC
 
 Response:
@@ -201,7 +201,7 @@ Response:
 You can also specify a path to the key:
 
 #+BEGIN_SRC
-http http://localhost:8888/defaults/passwords/root X-Tenant-Id:100000
+http http://localhost:8888/defaults/passwords/root X-User-Id:username
 #+END_SRC
 
 Response:
@@ -215,21 +215,21 @@ Response:
 To delete all of your containers and their data, send an HTTP DELETE request to the root of the endpoint itself, for example:
 
 #+BEGIN_SRC
-http DELETE http://localhost:8888 X-Tenant-Id:100000
+http DELETE http://localhost:8888 X-User-Id:username
 #+END_SRC
 
 To delete a specific container and it's data, send an HTTP DELETE request to the specific container.  To remove the "defaults" container that was created above, do:
 
 #+BEGIN_SRC
-http DELETE http://localhost:8888/defaults X-Tenant-Id:100000
+http DELETE http://localhost:8888/defaults X-User-Id:username
 #+END_SRC
 
 You can also delete a specific key from a container:
 
 #+BEGIN_SRC
-http DELETE http://localhost:8888/defaults/build_options X-Tenant-Id:100000
+http DELETE http://localhost:8888/defaults/build_options X-User-Id:username
 #+END_SRC
 
 #+BEGIN_SRC
-http DELETE http://localhost:8888/defaults/ssh_keys/root X-Tenant-Id:100000
+http DELETE http://localhost:8888/defaults/ssh_keys/root X-User-Id:username
 #+END_SRC

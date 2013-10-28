@@ -30,59 +30,51 @@ ENDPOINT = os.environ.get('ENDPOINT', 'http://localhost:8888')
 START = int(os.environ.get('START', 100000))
 MAX = int(os.environ.get('MAX', 1000))  # Simulate 1000 users at once
 
-DISTROS = [
-    'org.ubuntu',
-    'com.ubuntu',
-    'com.redhat',
-    'org.centos',
-    'org.debian',
-    'com.microsoft.server',
-]
-
 
 def random_password(size=12, chars=string.letters + string.digits):
     return ''.join(random.choice(chars) for x in range(size))
 
 
-def headers(tenant_id):
+def headers(user_id):
     return {
-        'X-Tenant-Id': str(tenant_id),
+        'X-User-Id': str(START),
+        #'X-User-Id': str(user_id),
     }
 
 
-def get(tenant_id, url):
+def get(user_id, url):
     return requests.get('%s/%s' % (ENDPOINT, url),
-                        headers=headers(tenant_id))
+                        headers=headers(user_id))
 
 
-def post(tenant_id, url, payload=None):
+def post(user_id, url, payload=None):
     if payload:
         data = json.dumps(payload)
     else:
         data = None
 
     return requests.post('%s/%s' % (ENDPOINT, url), data=data,
-                         headers=headers(tenant_id))
+                         headers=headers(user_id))
 
 
-def delete(tenant_id, url):
+def delete(user_id, url):
     return requests.delete('%s/%s' % (ENDPOINT, url),
-                           headers=headers(tenant_id))
+                           headers=headers(user_id))
 
 
-def simulate(tenant_id):
-    response = delete(tenant_id, '')
-    assert response.status_code == 204
+def simulate(user_id):
+    #response = delete(user_id, '')
+    #assert response.status_code == 204
 
-    response = post(tenant_id,
-                    'managed_cloud/build_config',
-                    payload=['driveclient', 'monitoring'])
-    assert response.status_code == 204
+    #response = post(user_id,
+    #                'managed_cloud/build_config',
+    #                payload=['driveclient', 'monitoring'])
+    #assert response.status_code == 204
 
-    response = get(tenant_id, 'managed_cloud/build_config')
-    assert response.status_code == 200
-    assert 'driveclient' in response.json()
-    assert 'monitoring' in response.json()
+    #response = get(user_id, 'managed_cloud/build_config')
+    #assert response.status_code == 200
+    #assert 'driveclient' in response.json()
+    #assert 'monitoring' in response.json()
 
     devices = [uuid.uuid4() for x in range(int(os.environ.get('DEVICES', 10)))]
     for device in devices:
@@ -91,15 +83,14 @@ def simulate(tenant_id):
         payload = {
             "current": current,
             "updated": updated,
-            "distro": random.choice(DISTROS),
         }
-        response = post(tenant_id, '%s/password' % device,
+        response = post(user_id, '%s/password' % device,
                         payload=payload)
         assert response.status_code == 204
 
-        response = get(tenant_id, '%s/password' % device)
-        assert response.status_code == 200
-        assert payload == response.json()
+        #response = get(user_id, '%s/password' % device)
+        #assert response.status_code == 200
+        #assert payload == response.json()
 
 
 def main():

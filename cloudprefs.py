@@ -36,8 +36,8 @@ class PrefsHandler(tornado.web.RequestHandler):
     def initialize(self, database):
         """Verify authentication and setup database access"""
         headers = self.request.headers
-        self.tenant_id = headers.get('X-Tenant-Id')
-        self.collection = database[self.tenant_id]
+        self.user_id = headers.get('X-User-Id')
+        self.collection = database[self.user_id]
 
     @gen.coroutine
     def prepare(self):
