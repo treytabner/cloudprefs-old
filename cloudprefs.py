@@ -27,6 +27,7 @@ from tornado.options import define, options
 define("port", default="8888", help="Port to listen on")
 define("mongodb", default="127.0.0.1:27017", help="MongoDB host or hosts")
 define("database", default="cloudprefs", help="Database name")
+define("collection", default=None, help="Force preferences to one collection")
 
 
 class PrefsHandler(tornado.web.RequestHandler):
@@ -37,7 +38,10 @@ class PrefsHandler(tornado.web.RequestHandler):
         """Verify authentication and setup database access"""
         headers = self.request.headers
         self.user_id = headers.get('X-User-Id')
-        self.collection = database[self.user_id]
+        if options.collection:
+            self.collection = database[options.collection]
+        else:
+            self.collection = database[self.user_id]
 
     @gen.coroutine
     def prepare(self):
