@@ -19,6 +19,7 @@ setup(
         'motor',
         'requests',
         'logstash_formatter',
+        'pylibmc',
     ],
     classifiers=[
         'Development Status :: 4 - Beta',
