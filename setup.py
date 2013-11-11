@@ -17,6 +17,8 @@ setup(
     install_requires=[
         'tornado',
         'motor',
+        'requests',
+        'logstash_formatter',
     ],
     classifiers=[
         'Development Status :: 4 - Beta',
