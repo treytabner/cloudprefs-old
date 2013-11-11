@@ -40,6 +40,7 @@ POST_ROLES = ['identity:admin']
 
 
 define("port", default="8888", help="Port to listen on")
+define("url", default=None, help="Keystone Auth Endpoint")
 define("mongodb", default="127.0.0.1:27017", help="MongoDB host or hosts")
 define("memcached", default="127.0.0.1", help="Memcached host or hosts")
 define("database", default="cloudprefs", help="Database name")
@@ -64,7 +65,7 @@ def get_auth_token(cache=False):
         except:
             pass
 
-    url = "https://identity-internal.api.rackspacecloud.com/v2.0/tokens"
+    url = "https://%s/v2.0/tokens" % options.url
     headers = {'content-type': 'application/json'}
     data = {"auth": {"passwordCredentials": {"username": "%s",
                                              "password": "%s"}}}
@@ -96,7 +97,7 @@ def validate_token(auth_token, managed_service_token, cache=False):
         except:
             pass
 
-    url = "https://identity-internal.api.rackspacecloud.com/v2.0/tokens"
+    url = "https://%s/v2.0/tokens" % options.url
     headers = {'content-type': 'application/json', 
                'X-Auth-Token':managed_service_token}
 
@@ -132,25 +133,26 @@ class PrefsHandler(tornado.web.RequestHandler):
             self.set_status(401)
             self.finish()
 
-        managed_service_token = get_auth_token(True)
-        headers = self.request.headers
-        self.auth_token = headers.get('X-Auth-Token')
-        if self.auth_token:
-            self.user = validate_token(self.auth_token, managed_service_token, True)
-            if self.user:
-                self.roles = self.user['access']['user']['roles']
-                self.user = self.user['access']['user']['id']
+        if options.url:
+            managed_service_token = get_auth_token(True)
+            headers = self.request.headers
+            self.auth_token = headers.get('X-Auth-Token')
+            if self.auth_token:
+                self.user = validate_token(self.auth_token, managed_service_token, True)
+                if self.user:
+                    self.roles = self.user['access']['user']['roles']
+                    self.user = self.user['access']['user']['id']
 
-                for y in self.roles:
-                    for v in y.items():
-                        if v[1] in GET_ROLES:
-                            self.access = 'GET'
-                            logging.info("User %s granted read access" % self.user)
-                            return
-                        elif v[1] in POST_ROLES:
-                            self.access = 'POST'
-                            logging.info("User %s granted write access" % self.user)
-                            return                  
+                    for y in self.roles:
+                        for v in y.items():
+                            if v[1] in GET_ROLES:
+                                self.access = 'GET'
+                                logging.info("User %s granted read access" % self.user)
+                                return
+                            elif v[1] in POST_ROLES:
+                                self.access = 'POST'
+                                logging.info("User %s granted write access" % self.user)
+                                return                  
         self.set_status(401)
         self.finish() 
 
@@ -158,7 +160,7 @@ class PrefsHandler(tornado.web.RequestHandler):
     @gen.coroutine
     def get(self, identifier=None, keyword=None):
         """Return a document or part of a document for specified entity"""
-        if not self.access:
+        if not self.access and options.url:
             self.set_status(401)
             self.finish() 
             return
@@ -217,7 +219,7 @@ class PrefsHandler(tornado.web.RequestHandler):
     def delete(self, identifier=None, keyword=None):
         """Delete a document or part of a document"""
 
-        if not self.access == 'POST':
+        if not self.access == 'POST' and options.url:
             self.set_status(401)
             self.finish() 
             return
@@ -265,7 +267,7 @@ class PrefsHandler(tornado.web.RequestHandler):
     def post(self, identifier=None, keyword=None):
         """Create a new document, collection or database"""
 
-        if not self.access == 'POST':
+        if not self.access == 'POST' and options.url:
             self.set_status(401)
             self.finish() 
             return
