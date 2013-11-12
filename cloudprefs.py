@@ -48,23 +48,28 @@ define("collection", default=None, help="Force preferences to one collection")
 define("log", default='/var/log/cloudprefs.log', help="Logfile path")
 define("logtype", default=None, help="Log type")
 
-def get_auth_token(cache=False):
+def check_cache(key, mc):
+    try:
+        token = mc.get(key)
+
+        if token:
+            logging.info('%s key found in cache' % key)
+            return token
+
+    except:
+        pass
+
+def set_cache_object(key, token, mc, time=3600):
+    logging.info("Setting object %s in cache" % key)
+    mc.set(key, token, time=360)
+
+def get_auth_token(cache=False, mc=False):
     if cache:
-        mc_server = []
-        mc_server.append(options.memcached)
-        mc = pylibmc.Client(mc_server, binary=True,
-                            behaviors={'tcp_nodelay': True, 'ketama': True})
-        key = 'token-raxauth_token' 
-
-        try:
-            token = mc.get(key)
-
-            if token:
-                return token
-
-        except:
-            pass
-
+        key = "token-raxauth"
+        managed_service_token = check_cache(key, mc)
+        if managed_service_token:
+            return managed_service_token
+    
     url = "https://%s/v2.0/tokens" % options.url
     headers = {'content-type': 'application/json'}
     data = {"auth": {"passwordCredentials": {"username": "%s",
@@ -74,28 +79,19 @@ def get_auth_token(cache=False):
     if r.status_code == requests.codes.ok:
         token = r.json()['access']['token']['id']
         if cache:
-            mc.set(key, token, time=3600)
+            set_cache_object(key, token, mc)
         return token
-    
+    else:
+        logging.warning('Unable to get service auth token: %s' % r.json())
     return False 
 
-def validate_token(auth_token, managed_service_token, cache=False):
+def validate_token(auth_token, managed_service_token, cache=False, mc=False):
 
     if cache:
-        mc_server = []
-        mc_server.append(options.memcached)
-        mc = pylibmc.Client(mc_server, binary=True,
-                            behaviors={'tcp_nodelay': True, 'ketama': True})
-        key = 'token-%s' % hashlib.sha224(auth_token).hexdigest()
-
-        try:
-            token = mc.get(key)
-
-            if token:
-                return token
-
-        except:
-            pass
+        key = 'user-%s' % hashlib.sha224(auth_token).hexdigest()
+        user = check_cache(key, mc)
+        if user:
+            return user
 
     url = "https://%s/v2.0/tokens" % options.url
     headers = {'content-type': 'application/json', 
@@ -106,10 +102,10 @@ def validate_token(auth_token, managed_service_token, cache=False):
     if r.status_code == requests.codes.ok:
         user = r.json()
         if cache:
-            mc.set(key, user, time=360)
+            set_cache_object(key, user, mc, time=360)
         return user
     else:
-        logging.info('Invalid auth token')
+        logging.info('Invalid auth token: %s' % r.json())
     return False 
 
 
@@ -129,29 +125,32 @@ class PrefsHandler(tornado.web.RequestHandler):
     @gen.coroutine
     def prepare(self):
         """Make sure we have a valid collection to work with"""
+
+        mc_server = [options.memcached]
+        mc = pylibmc.Client(mc_server, binary=True,
+                            behaviors={'tcp_nodelay': True, 'ketama': True})
+
         if 'collection' not in dir(self):
             self.set_status(401)
             self.finish()
 
         if options.url:
-            managed_service_token = get_auth_token(True)
+            managed_service_token = get_auth_token(True, mc)
             headers = self.request.headers
             self.auth_token = headers.get('X-Auth-Token')
             if self.auth_token:
-                self.user = validate_token(self.auth_token, managed_service_token, True)
+                self.user = validate_token(self.auth_token, managed_service_token, True, mc)
                 if self.user:
                     self.roles = self.user['access']['user']['roles']
-                    self.user = self.user['access']['user']['id']
+                    self.user_id = self.user['access']['user']['id']
 
                     for y in self.roles:
                         for v in y.items():
                             if v[1] in GET_ROLES:
                                 self.access = 'GET'
-                                logging.info("User %s granted read access" % self.user)
                                 return
                             elif v[1] in POST_ROLES:
                                 self.access = 'POST'
-                                logging.info("User %s granted write access" % self.user)
                                 return                  
         self.set_status(401)
         self.finish() 
@@ -211,7 +210,7 @@ class PrefsHandler(tornado.web.RequestHandler):
         if response is not None:
             self.set_header('Content-Type', 'application/json')
             self.write(json.dumps(response))
-           #TODO: Add audit log: logging.info("User %s accessed password for device %s" % (self.user, identifier))
+            logging.info("User: %s request: %s" % (self.user_id, self.request))
         else:
             self.set_status(404)
 
