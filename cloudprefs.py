@@ -151,18 +151,20 @@ class PrefsHandler(tornado.web.RequestHandler):
                                 return
                             elif v[1] in POST_ROLES:
                                 self.access = 'POST'
-                                return                  
-        self.set_status(401)
-        self.finish() 
+                                return    
+            logging.info("Access denied")              
+            self.set_status(401)
+            self.finish() 
 
 
     @gen.coroutine
     def get(self, identifier=None, keyword=None):
         """Return a document or part of a document for specified entity"""
-        if not self.access and options.url:
-            self.set_status(401)
-            self.finish() 
-            return
+        if options.url:
+            if not self.access:
+                self.set_status(401)
+                self.finish() 
+                return
 
         response = None
 
@@ -218,10 +220,11 @@ class PrefsHandler(tornado.web.RequestHandler):
     def delete(self, identifier=None, keyword=None):
         """Delete a document or part of a document"""
 
-        if not self.access == 'POST' and options.url:
-            self.set_status(401)
-            self.finish() 
-            return
+        if options.url:
+            if not self.access == 'POST':
+                self.set_status(401)
+                self.finish() 
+                return
 
         if keyword:
             # Remove part of a document
@@ -266,10 +269,11 @@ class PrefsHandler(tornado.web.RequestHandler):
     def post(self, identifier=None, keyword=None):
         """Create a new document, collection or database"""
 
-        if not self.access == 'POST' and options.url:
-            self.set_status(401)
-            self.finish() 
-            return
+        if options.url:
+            if not self.access == 'POST':
+                self.set_status(401)
+                self.finish() 
+                return
 
         if identifier:
             document = yield motor.Op(self.collection.find_one,
