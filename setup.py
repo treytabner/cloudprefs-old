@@ -17,6 +17,9 @@ setup(
     install_requires=[
         'tornado',
         'motor',
+        'requests',
+        'logstash_formatter',
+        'pylibmc',
     ],
     classifiers=[
         'Development Status :: 4 - Beta',

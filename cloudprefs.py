@@ -16,6 +16,12 @@
 
 import json
 import motor
+import os
+import requests
+import pylibmc
+import hashlib
+import logging
+import logstash_formatter
 
 import tornado.ioloop
 import tornado.web
@@ -23,11 +29,88 @@ import tornado.web
 from tornado import gen
 from tornado.options import define, options
 
+USERNAME = os.environ.get('USERNAME')
+PASSWORD = os.environ.get('PASSWORD')
+
+
+GET_ROLES = ['lnx-cbastion', 
+             'Windows Bastion Users']
+
+POST_ROLES = ['identity:admin']
+
 
 define("port", default="8888", help="Port to listen on")
+define("url", default=None, help="Keystone Auth Endpoint")
 define("mongodb", default="127.0.0.1:27017", help="MongoDB host or hosts")
+define("memcached", default="127.0.0.1", help="Memcached host or hosts")
 define("database", default="cloudprefs", help="Database name")
 define("collection", default=None, help="Force preferences to one collection")
+define("log", default='/var/log/cloudprefs.log', help="Logfile path")
+define("logtype", default=None, help="Log type")
+
+def get_auth_token(cache=False):
+    if cache:
+        mc_server = []
+        mc_server.append(options.memcached)
+        mc = pylibmc.Client(mc_server, binary=True,
+                            behaviors={'tcp_nodelay': True, 'ketama': True})
+        key = 'token-raxauth_token' 
+
+        try:
+            token = mc.get(key)
+
+            if token:
+                return token
+
+        except:
+            pass
+
+    url = "https://%s/v2.0/tokens" % options.url
+    headers = {'content-type': 'application/json'}
+    data = {"auth": {"passwordCredentials": {"username": "%s",
+                                             "password": "%s"}}}
+    res = json.dumps(data) % (USERNAME, PASSWORD)
+    r = requests.post(url, res, headers=headers)
+    if r.status_code == requests.codes.ok:
+        token = r.json()['access']['token']['id']
+        if cache:
+            mc.set(key, token, time=3600)
+        return token
+    
+    return False 
+
+def validate_token(auth_token, managed_service_token, cache=False):
+
+    if cache:
+        mc_server = []
+        mc_server.append(options.memcached)
+        mc = pylibmc.Client(mc_server, binary=True,
+                            behaviors={'tcp_nodelay': True, 'ketama': True})
+        key = 'token-%s' % hashlib.sha224(auth_token).hexdigest()
+
+        try:
+            token = mc.get(key)
+
+            if token:
+                return token
+
+        except:
+            pass
+
+    url = "https://%s/v2.0/tokens" % options.url
+    headers = {'content-type': 'application/json', 
+               'X-Auth-Token':managed_service_token}
+
+    req = url + "/%s" % auth_token
+    r = requests.get(req, headers=headers)
+    if r.status_code == requests.codes.ok:
+        user = r.json()
+        if cache:
+            mc.set(key, user, time=360)
+        return user
+    else:
+        logging.info('Invalid auth token')
+    return False 
 
 
 class PrefsHandler(tornado.web.RequestHandler):
@@ -50,9 +133,38 @@ class PrefsHandler(tornado.web.RequestHandler):
             self.set_status(401)
             self.finish()
 
+        if options.url:
+            managed_service_token = get_auth_token(True)
+            headers = self.request.headers
+            self.auth_token = headers.get('X-Auth-Token')
+            if self.auth_token:
+                self.user = validate_token(self.auth_token, managed_service_token, True)
+                if self.user:
+                    self.roles = self.user['access']['user']['roles']
+                    self.user = self.user['access']['user']['id']
+
+                    for y in self.roles:
+                        for v in y.items():
+                            if v[1] in GET_ROLES:
+                                self.access = 'GET'
+                                logging.info("User %s granted read access" % self.user)
+                                return
+                            elif v[1] in POST_ROLES:
+                                self.access = 'POST'
+                                logging.info("User %s granted write access" % self.user)
+                                return                  
+        self.set_status(401)
+        self.finish() 
+
+
     @gen.coroutine
     def get(self, identifier=None, keyword=None):
         """Return a document or part of a document for specified entity"""
+        if not self.access and options.url:
+            self.set_status(401)
+            self.finish() 
+            return
+
         response = None
 
         if not identifier:
@@ -99,12 +211,19 @@ class PrefsHandler(tornado.web.RequestHandler):
         if response is not None:
             self.set_header('Content-Type', 'application/json')
             self.write(json.dumps(response))
+           #TODO: Add audit log: logging.info("User %s accessed password for device %s" % (self.user, identifier))
         else:
             self.set_status(404)
 
     @gen.coroutine
     def delete(self, identifier=None, keyword=None):
         """Delete a document or part of a document"""
+
+        if not self.access == 'POST' and options.url:
+            self.set_status(401)
+            self.finish() 
+            return
+
         if keyword:
             # Remove part of a document
             document = yield motor.Op(self.collection.find_one,
@@ -147,6 +266,12 @@ class PrefsHandler(tornado.web.RequestHandler):
     @gen.coroutine
     def post(self, identifier=None, keyword=None):
         """Create a new document, collection or database"""
+
+        if not self.access == 'POST' and options.url:
+            self.set_status(401)
+            self.finish() 
+            return
+
         if identifier:
             document = yield motor.Op(self.collection.find_one,
                                       {'__id': identifier})
@@ -231,6 +356,16 @@ class PrefsHandler(tornado.web.RequestHandler):
 
 def main():
     """Setup the application and start listening for traffic"""
+
+    
+    if options.logtype == 'logstash':
+        logger = logging.getLogger()
+        handler = logging.FileHandler(options.log)
+        formatter = logstash_formatter.LogstashFormatter()
+
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+
     try:
         tornado.options.parse_command_line()
     except tornado.options.Error, exc:
