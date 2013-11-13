@@ -29,11 +29,11 @@ import tornado.web
 from tornado import gen
 from tornado.options import define, options
 
+
 USERNAME = os.environ.get('USERNAME')
 PASSWORD = os.environ.get('PASSWORD')
 
-
-GET_ROLES = ['lnx-cbastion', 
+GET_ROLES = ['lnx-cbastion',
              'Windows Bastion Users']
 
 POST_ROLES = ['identity:admin']
@@ -48,6 +48,7 @@ define("collection", default=None, help="Force preferences to one collection")
 define("log", default='/var/log/cloudprefs.log', help="Logfile path")
 define("logtype", default=None, help="Log type")
 
+
 def check_cache(key, mc):
     try:
         token = mc.get(key)
@@ -59,9 +60,11 @@ def check_cache(key, mc):
     except:
         pass
 
+
 def set_cache_object(key, token, mc, time=3600):
     logging.info("Setting object %s in cache" % key)
     mc.set(key, token, time=360)
+
 
 def get_auth_token(cache=False, mc=False):
     if cache:
@@ -69,7 +72,7 @@ def get_auth_token(cache=False, mc=False):
         managed_service_token = check_cache(key, mc)
         if managed_service_token:
             return managed_service_token
-    
+
     url = "https://%s/v2.0/tokens" % options.url
     headers = {'content-type': 'application/json'}
     data = {"auth": {"passwordCredentials": {"username": "%s",
@@ -83,10 +86,10 @@ def get_auth_token(cache=False, mc=False):
         return token
     else:
         logging.warning('Unable to get service auth token: %s' % r.json())
-    return False 
+    return False
+
 
 def validate_token(auth_token, managed_service_token, cache=False, mc=False):
-
     if cache:
         key = 'user-%s' % hashlib.sha224(auth_token).hexdigest()
         user = check_cache(key, mc)
@@ -94,8 +97,10 @@ def validate_token(auth_token, managed_service_token, cache=False, mc=False):
             return user
 
     url = "https://%s/v2.0/tokens" % options.url
-    headers = {'content-type': 'application/json', 
-               'X-Auth-Token':managed_service_token}
+    headers = {
+        'content-type': 'application/json',
+        'X-Auth-Token': managed_service_token
+    }
 
     req = url + "/%s" % auth_token
     r = requests.get(req, headers=headers)
@@ -106,7 +111,7 @@ def validate_token(auth_token, managed_service_token, cache=False, mc=False):
         return user
     else:
         logging.info('Invalid auth token: %s' % r.json())
-    return False 
+    return False
 
 
 class PrefsHandler(tornado.web.RequestHandler):
@@ -139,7 +144,8 @@ class PrefsHandler(tornado.web.RequestHandler):
             headers = self.request.headers
             self.auth_token = headers.get('X-Auth-Token')
             if self.auth_token:
-                self.user = validate_token(self.auth_token, managed_service_token, True, mc)
+                self.user = validate_token(self.auth_token,
+                                           managed_service_token, True, mc)
                 if self.user:
                     self.roles = self.user['access']['user']['roles']
                     self.user_id = self.user['access']['user']['id']
@@ -151,11 +157,10 @@ class PrefsHandler(tornado.web.RequestHandler):
                                 return
                             elif v[1] in POST_ROLES:
                                 self.access = 'POST'
-                                return    
-            logging.info("Access denied")              
+                                return
+            logging.info("Access denied")
             self.set_status(401)
-            self.finish() 
-
+            self.finish()
 
     @gen.coroutine
     def get(self, identifier=None, keyword=None):
@@ -163,7 +168,7 @@ class PrefsHandler(tornado.web.RequestHandler):
         if options.url:
             if not self.access:
                 self.set_status(401)
-                self.finish() 
+                self.finish()
                 return
 
         response = None
@@ -223,7 +228,7 @@ class PrefsHandler(tornado.web.RequestHandler):
         if options.url:
             if not self.access == 'POST':
                 self.set_status(401)
-                self.finish() 
+                self.finish()
                 return
 
         if keyword:
@@ -260,8 +265,13 @@ class PrefsHandler(tornado.web.RequestHandler):
             yield motor.Op(self.collection.remove, {'__id': identifier})
 
         else:
-            # Drop the collection
-            yield motor.Op(self.collection.drop)
+            if options.collection:
+                # Not allowed to drop a shared collection
+                self.set_status(401)
+                self.finish()
+            else:
+                # Drop the collection
+                yield motor.Op(self.collection.drop)
 
         self.set_status(204)
 
@@ -272,7 +282,7 @@ class PrefsHandler(tornado.web.RequestHandler):
         if options.url:
             if not self.access == 'POST':
                 self.set_status(401)
-                self.finish() 
+                self.finish()
                 return
 
         if identifier:
@@ -360,7 +370,6 @@ class PrefsHandler(tornado.web.RequestHandler):
 def main():
     """Setup the application and start listening for traffic"""
 
-    
     if options.logtype == 'logstash':
         logger = logging.getLogger()
         handler = logging.FileHandler(options.log)
