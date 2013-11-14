@@ -9,7 +9,7 @@ Cloud Preferences is built with Python and uses Tornado for the web framework pr
 Install the Cloud Preferences API, Supervisor, MongoDB and Memcached:
 
 #+BEGIN_SRC sh
-apt-get install supervisor mongodb-server nginx python-pip python-dev git
+apt-get install supervisor mongodb-server nginx python-pip python-dev libmemcached-dev zlib1g-dev git
 pip install git+https://github.com/treytabner/python-cloudprefs.git
 #+END_SRC
 
