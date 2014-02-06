@@ -10,7 +10,7 @@ Install the Cloud Preferences API, Supervisor, MongoDB and Memcached:
 
 #+BEGIN_SRC sh
 apt-get install supervisor mongodb-server nginx python-pip python-dev libmemcached-dev zlib1g-dev git
-pip install git+https://github.com/treytabner/python-cloudprefs.git
+pip install git+https://github.com/treytabner/cloudprefs.git
 #+END_SRC
 
 * Configuration
@@ -116,7 +116,7 @@ Possible HTTP status codes include:
 - 401: Forbidden, make sure you are passing the proper headers as described above
 - 404: Category or key not found from a GET request
 - 409: Problem storing data, conflict with a key detected
-- 500: Internal server error, please [[https://github.com/treytabner/python-cloudprefs/issues/new][submit a bug]] if this happens
+- 500: Internal server error, please [[https://github.com/treytabner/cloudprefs/issues/new][submit a bug]] if this happens
 - 504: Gateway timeout, the load balancer, proxy or Nginx instance may be having a problem
 
 *** Storing (POST)

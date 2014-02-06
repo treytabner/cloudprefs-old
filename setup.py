@@ -10,7 +10,7 @@ setup(
     long_description='Cloud Preferences API for use with OpenStack',
     author='Trey Tabner',
     author_email='trey@tabner.com',
-    url='https://github.com/treytabner/python-cloudprefs',
+    url='https://github.com/treytabner/cloudprefs',
     py_modules=['cloudprefs'],
     license='Apache',
     platforms='any',
