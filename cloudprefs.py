@@ -139,8 +139,13 @@ class PrefsHandler(tornado.web.RequestHandler):
             yield motor.Op(self.collection.remove, {'__id': identifier})
 
         else:
-            # Drop the collection
-            yield motor.Op(self.collection.drop)
+            if options.collection:
+                # Not allowed to drop a shared collection
+                self.set_status(401)
+                self.finish()
+            else:
+                # Drop the collection
+                yield motor.Op(self.collection.drop)
 
         self.set_status(204)
 
