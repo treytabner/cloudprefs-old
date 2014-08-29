@@ -16,12 +16,6 @@
 
 import json
 import motor
-import os
-import requests
-import pylibmc
-import hashlib
-import logging
-import logstash_formatter
 
 import tornado.ioloop
 import tornado.web
@@ -30,88 +24,10 @@ from tornado import gen
 from tornado.options import define, options
 
 
-USERNAME = os.environ.get('USERNAME')
-PASSWORD = os.environ.get('PASSWORD')
-
-GET_ROLES = ['lnx-cbastion',
-             'Windows Bastion Users']
-
-POST_ROLES = ['identity:admin']
-
-
 define("port", default="8888", help="Port to listen on")
-define("url", default=None, help="Keystone Auth Endpoint")
 define("mongodb", default="127.0.0.1:27017", help="MongoDB host or hosts")
-define("memcached", default="127.0.0.1", help="Memcached host or hosts")
 define("database", default="cloudprefs", help="Database name")
 define("collection", default=None, help="Force preferences to one collection")
-define("log", default='/var/log/cloudprefs.log', help="Logfile path")
-define("logtype", default=None, help="Log type")
-
-
-def check_cache(key, mc):
-    try:
-        token = mc.get(key)
-
-        if token:
-            logging.info('%s key found in cache' % key)
-            return token
-
-    except:
-        pass
-
-
-def set_cache_object(key, token, mc, time=3600):
-    logging.info("Setting object %s in cache" % key)
-    mc.set(key, token, time=360)
-
-
-def get_auth_token(cache=False, mc=False):
-    if cache:
-        key = "token-raxauth"
-        managed_service_token = check_cache(key, mc)
-        if managed_service_token:
-            return managed_service_token
-
-    url = "https://%s/v2.0/tokens" % options.url
-    headers = {'content-type': 'application/json'}
-    data = {"auth": {"passwordCredentials": {"username": "%s",
-                                             "password": "%s"}}}
-    res = json.dumps(data) % (USERNAME, PASSWORD)
-    r = requests.post(url, res, headers=headers)
-    if r.status_code == requests.codes.ok:
-        token = r.json()['access']['token']['id']
-        if cache:
-            set_cache_object(key, token, mc)
-        return token
-    else:
-        logging.warning('Unable to get service auth token: %s' % r.json())
-    return False
-
-
-def validate_token(auth_token, managed_service_token, cache=False, mc=False):
-    if cache:
-        key = 'user-%s' % hashlib.sha224(auth_token).hexdigest()
-        user = check_cache(key, mc)
-        if user:
-            return user
-
-    url = "https://%s/v2.0/tokens" % options.url
-    headers = {
-        'content-type': 'application/json',
-        'X-Auth-Token': managed_service_token
-    }
-
-    req = url + "/%s" % auth_token
-    r = requests.get(req, headers=headers)
-    if r.status_code == requests.codes.ok:
-        user = r.json()
-        if cache:
-            set_cache_object(key, user, mc, time=360)
-        return user
-    else:
-        logging.info('Invalid auth token: %s' % r.json())
-    return False
 
 
 class PrefsHandler(tornado.web.RequestHandler):
@@ -130,47 +46,13 @@ class PrefsHandler(tornado.web.RequestHandler):
     @gen.coroutine
     def prepare(self):
         """Make sure we have a valid collection to work with"""
-
-        mc_server = [options.memcached]
-        mc = pylibmc.Client(mc_server, binary=True,
-                            behaviors={'tcp_nodelay': True, 'ketama': True})
-
         if 'collection' not in dir(self):
-            self.set_status(401)
-            self.finish()
-
-        if options.url:
-            managed_service_token = get_auth_token(True, mc)
-            headers = self.request.headers
-            self.auth_token = headers.get('X-Auth-Token')
-            if self.auth_token:
-                self.user = validate_token(self.auth_token,
-                                           managed_service_token, True, mc)
-                if self.user:
-                    self.roles = self.user['access']['user']['roles']
-                    self.user_id = self.user['access']['user']['id']
-
-                    for y in self.roles:
-                        for v in y.items():
-                            if v[1] in GET_ROLES:
-                                self.access = 'GET'
-                                return
-                            elif v[1] in POST_ROLES:
-                                self.access = 'POST'
-                                return
-            logging.info("Access denied")
             self.set_status(401)
             self.finish()
 
     @gen.coroutine
     def get(self, identifier=None, keyword=None):
         """Return a document or part of a document for specified entity"""
-        if options.url:
-            if not self.access:
-                self.set_status(401)
-                self.finish()
-                return
-
         response = None
 
         if not identifier:
@@ -217,20 +99,12 @@ class PrefsHandler(tornado.web.RequestHandler):
         if response is not None:
             self.set_header('Content-Type', 'application/json')
             self.write(json.dumps(response))
-            logging.info("User: %s request: %s" % (self.user_id, self.request))
         else:
             self.set_status(404)
 
     @gen.coroutine
     def delete(self, identifier=None, keyword=None):
         """Delete a document or part of a document"""
-
-        if options.url:
-            if not self.access == 'POST':
-                self.set_status(401)
-                self.finish()
-                return
-
         if keyword:
             # Remove part of a document
             document = yield motor.Op(self.collection.find_one,
@@ -265,26 +139,14 @@ class PrefsHandler(tornado.web.RequestHandler):
             yield motor.Op(self.collection.remove, {'__id': identifier})
 
         else:
-            if options.collection:
-                # Not allowed to drop a shared collection
-                self.set_status(401)
-                self.finish()
-            else:
-                # Drop the collection
-                yield motor.Op(self.collection.drop)
+            # Drop the collection
+            yield motor.Op(self.collection.drop)
 
         self.set_status(204)
 
     @gen.coroutine
     def post(self, identifier=None, keyword=None):
         """Create a new document, collection or database"""
-
-        if options.url:
-            if not self.access == 'POST':
-                self.set_status(401)
-                self.finish()
-                return
-
         if identifier:
             document = yield motor.Op(self.collection.find_one,
                                       {'__id': identifier})
@@ -369,15 +231,6 @@ class PrefsHandler(tornado.web.RequestHandler):
 
 def main():
     """Setup the application and start listening for traffic"""
-
-    if options.logtype == 'logstash':
-        logger = logging.getLogger()
-        handler = logging.FileHandler(options.log)
-        formatter = logstash_formatter.LogstashFormatter()
-
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-
     try:
         tornado.options.parse_command_line()
     except tornado.options.Error, exc:
